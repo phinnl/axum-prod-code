@@ -1,0 +1,4 @@
+[env]
+
+RUST_LOG="axum_prod_code=debug"
+SERVICE_WEB_FOLDER="web-folder/"

@@ -8,6 +8,8 @@ mod error;
 mod log;
 mod model;
 mod web;
+// #[cfg(test)] // Commented during early development
+pub mod _dev_utils;
 
 pub use self::config::config;
 pub use self::error::{Error, Result};
@@ -33,13 +35,15 @@ async fn main() -> Result<()> {
 		.with_env_filter(EnvFilter::from_default_env())
 		.init();
 
+  // -- FOR DEV ONLY
+  _dev_utils::init_dev().await;
+
     // Initialize ModelManager.
 	let mm = ModelManager::new().await?;
 
 	// -- Define Routes
 	// let routes_rpc = rpc::routes(mm.clone())
 	//   .route_layer(middleware::from_fn(mw_ctx_require));
-
 	let routes_all = Router::new()
 		.merge(routes_login::routes())
 		// .nest("/api", routes_rpc)

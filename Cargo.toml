@@ -22,6 +22,8 @@ uuid = { version = "1", features = ["v4", "fast-rng"] }
 lazy-regex = "2"
 async-trait = "0.1"
 strum_macros = "0.25"
+# --Data
+sqlx = { version = "0.6", features = ["runtime-tokio-rustls", "postgres", "uuid", "time"] }
 
 [dev-dependencies]
 anyhow = "1"

@@ -1,4 +1,4 @@
 [env]
-
 RUST_LOG="axum_prod_code=debug"
 SERVICE_WEB_FOLDER="web-folder/"
+SERVICE_DB_URL="postgres://app_user:dev_only_password@localhost:5432/app_db"

@@ -2,6 +2,7 @@
 
 // region:    --- Modules
 
+mod utils;
 mod config;
 mod crypt;
 mod ctx;

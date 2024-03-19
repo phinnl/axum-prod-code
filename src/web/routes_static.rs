@@ -2,7 +2,6 @@ use axum::handler::HandlerWithoutStateExt;
 use axum::http::StatusCode;
 use axum::routing::{any_service, MethodRouter};
 use tower_http::services::ServeDir;
-use tracing::debug;
 
 use crate::config;
 

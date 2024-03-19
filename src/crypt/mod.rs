@@ -1,6 +1,7 @@
 mod error;
 
 pub mod pwd;
+pub mod token;
 pub use error::{Error, Result};
 use hmac::{Hmac, Mac};
 use sha2::Sha512;

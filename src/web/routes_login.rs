@@ -2,7 +2,7 @@ use crate::crypt::{pwd, EncryptContent};
 use crate::ctx::Ctx;
 use crate::model::user::{UserBmc, UserForLogin};
 use crate::model::ModelManager;
-use crate::web::{self, Error, Result};
+use crate::web::{self, set_token_cookies, Error, Result};
 use axum::extract::State;
 use axum::routing::post;
 use axum::{Json, Router};
@@ -50,8 +50,7 @@ async fn api_login_handler(
 	)
 	.map_err(|_| Error::LoginFailPwdNotMatching { user_id })?;
 
-	// FIXME: Implement real auth-token generation/signature.
-	cookies.add(Cookie::new(web::AUTH_TOKEN, "user-1.exp.sign"));
+	set_token_cookies(&cookies, &user.username, &user.token_salt.to_string());
 
 	// Create the success body.
 	let body = Json(json!({

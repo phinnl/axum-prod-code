@@ -1,4 +1,4 @@
-use crate::{model, web};
+use crate::{crypt, model, web};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use serde::Serialize;
@@ -16,11 +16,18 @@ pub enum Error {
 	// -- CtxExtError
 	CtxExt(web::mw_auth::CtxExtError),
 	Model(model::Error),
+	Crypt(crypt::Error),
 }
 
 impl From<model::Error> for Error {
 	fn from(err: model::Error) -> Self {
 		Self::Model(err)
+	}
+}
+
+impl From<crypt::Error> for Error {
+	fn from(err: crypt::Error) -> Self {
+		Self::Crypt(err)
 	}
 }
 
@@ -66,7 +73,7 @@ impl Error {
 			LoginFailUsernameNotFound
 			| LoginFailUserHasNoPwd { .. }
 			| LoginFailPwdNotMatching { .. } => {
-				(StatusCode::FORBIDDEN, ClientError::LOGIN_FAIL)
+				(StatusCode::BAD_REQUEST, ClientError::LOGIN_FAIL)
 			}
 			// -- Auth
 			CtxExt(_) => (StatusCode::FORBIDDEN, ClientError::NO_AUTH),

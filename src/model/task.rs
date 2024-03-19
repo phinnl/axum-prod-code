@@ -1,28 +1,33 @@
 use serde::{Deserialize, Serialize};
+use sqlb::Fields;
 use sqlx::prelude::FromRow;
 
-use crate::{
-	ctx::Ctx,
-	model::{ModelManager, Result},
-};
+use super::{Error, ModelManager, Result};
+use crate::ctx::Ctx;
 
-#[derive(Clone, Debug, FromRow, Serialize)]
+use super::base::{self, DbBmc};
+
+#[derive(Clone, Debug, FromRow, Fields, Serialize)]
 pub struct Task {
 	id: i64,
 	title: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Fields)]
 pub struct TaskForCreate {
-	title: String,
+	pub title: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Fields)]
 pub struct TaskForUpdate {
 	title: Option<String>,
 }
 
 pub struct TaskBmc;
+
+impl DbBmc for TaskBmc {
+	const TABLE: &'static str = "task";
+}
 
 impl TaskBmc {
 	pub async fn create(
@@ -30,28 +35,45 @@ impl TaskBmc {
 		mm: &ModelManager,
 		payload: TaskForCreate,
 	) -> Result<Task> {
-		let db = mm.db();
-		let task = sqlx::query_as::<_, Task>(
-			"INSERT INTO task (title) VALUES ($1) RETURNING *",
-		)
-		.bind(payload.title)
-		.fetch_one(db)
-		.await?;
-		Ok(task)
+		base::create::<Self, _, TaskForCreate>(ctx, mm, payload).await
+	}
+
+	pub async fn update(
+		ctx: &Ctx,
+		mm: &ModelManager,
+		id: i64,
+		payload: TaskForUpdate,
+	) -> Result<Task> {
+		base::update::<Self, _, TaskForUpdate>(ctx, mm, id, payload).await
+	}
+
+	pub async fn get(ctx: &Ctx, mm: &ModelManager, id: i64) -> Result<Task> {
+		base::get::<Self, _>(ctx, mm, id).await
+	}
+
+	pub async fn list(ctx: &Ctx, mm: &ModelManager) -> Result<Vec<Task>> {
+		base::list::<Self, _>(ctx, mm).await
+	}
+
+	pub async fn delete(ctx: &Ctx, mm: &ModelManager, id: i64) -> Result<()> {
+		base::delete::<Self>(ctx, mm, id).await
 	}
 }
 
 #[cfg(test)]
 mod tests {
-	use crate::_dev_utils;
 	use super::*;
+	use crate::_dev_utils;
 	use anyhow::Result;
+	use axum::routing::delete;
 
 	#[tokio::test]
 	async fn test_create_task() -> Result<()> {
 		let mm = _dev_utils::init_test().await;
 		let ctx = Ctx::root_ctx();
-		let fx_title = "test_task_title";
+		let fx_title = "test_task_create_title";
+
+		// Execute
 		let task = TaskBmc::create(
 			&ctx,
 			&mm,
@@ -60,25 +82,113 @@ mod tests {
 			},
 		)
 		.await?;
-		println!("->> {:<12} - task.rs:64 - {task:?}", "HANDLER");
-
 		let id = task.id;
 
-		// check
-		let (title,): (String,) =
-			sqlx::query_as("SELECT title FROM task WHERE id = $1")
-				.bind(id)
-				.fetch_one(mm.db())
-				.await?;
-		assert_eq!(fx_title, title);
+		// Check
+		assert_eq!(fx_title, task.title);
 
-		// cleanup
-		let count = sqlx::query("DELETE FROM task WHERE id = $1")
-			.bind(id)
-			.execute(mm.db())
-			.await?
-			.rows_affected();
-		assert_eq!(1, count, "Deleted 1 row, id = {id}");
+		// Cleanup
+		TaskBmc::delete(&ctx, &mm, id).await?;
+
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn test_update_task() -> Result<()> {
+		let mm = _dev_utils::init_test().await;
+		let ctx = Ctx::root_ctx();
+		let fx_title = "test_task_create_title";
+
+		// Execute
+		let task = TaskBmc::create(
+			&ctx,
+			&mm,
+			TaskForCreate {
+				title: fx_title.to_string(),
+			},
+		)
+		.await?;
+		let id = task.id;
+
+		// Check
+		assert_eq!(fx_title, task.title);
+
+		// Update
+		let task = TaskBmc::update(
+			&ctx,
+			&mm,
+			id,
+			TaskForUpdate {
+				title: Some("test_task_update_title".to_string()),
+			},
+		)
+		.await?;
+		assert_eq!("test_task_update_title", task.title);
+
+		// Cleanup
+		TaskBmc::delete(&ctx, &mm, id).await?;
+
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn test_get_not_found() -> Result<()> {
+		let mm = _dev_utils::init_test().await;
+		let ctx = Ctx::root_ctx();
+		let fx_id = 100;
+
+		// Execute
+		let task = TaskBmc::get(&ctx, &mm, fx_id).await;
+
+		// Check
+		assert!(
+			matches!(task, Err(Error::EntityNotFound { entity: "task", id })),
+			"Entity not found matching"
+		);
+
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn test_delete_not_found() -> Result<()> {
+		let mm = _dev_utils::init_test().await;
+		let ctx = Ctx::root_ctx();
+		let fx_id = 100;
+
+		// Execute
+		let task = TaskBmc::delete(&ctx, &mm, fx_id).await;
+
+		// Check
+		assert!(
+			matches!(task, Err(Error::EntityNotFound { entity: "task", id })),
+			"Entity not found matching"
+		);
+
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn test_list() -> Result<()> {
+		let mm = _dev_utils::init_test().await;
+		let ctx = Ctx::root_ctx();
+		let fx_titles = ["test_task_title_1", "test_task_title_2"];
+		let tasks = _dev_utils::seed_tasks(&ctx, &mm, &fx_titles).await?;
+
+		// Execute
+		let tasks = TaskBmc::list(&ctx, &mm).await?;
+
+		// Check
+		let tasks = tasks
+			.into_iter()
+			.filter(|task| task.title.starts_with("test_task_title"))
+			.collect::<Vec<Task>>();
+		assert_eq!(tasks.len(), 2, "number of seeded tasks");
+
+		// Cleanup
+		for task in tasks {
+			TaskBmc::delete(&ctx, &mm, task.id).await?;
+		}
+
 		Ok(())
 	}
 }

@@ -2,3 +2,6 @@
 RUST_LOG="axum_prod_code=debug"
 SERVICE_WEB_FOLDER="web-folder/"
 SERVICE_DB_URL="postgres://app_user:dev_only_password@localhost:5432/app_db"
+SERVICE_PWD_KEY="SUYB2hB6m7VTvkhkCcJRgI_Uelb6FEJnMGXhngH6n1mJrcyu9gYFx3UqilD0HMUTpXwRXBzpdr6g4RN2tyHZ6w"
+SERVICE_TOKEN_KEY="mMC6D5qi2y4do0Bgoa_nW9HHfai1DeEy57GMIMQC7x2Ai-Xu1XCaecLaVJGXn9o2yRQxyd0-o2_0oKSXT0Jbvw"
+SERVICE_TOKEN_DURATION_SEC="1800" # 30 mins

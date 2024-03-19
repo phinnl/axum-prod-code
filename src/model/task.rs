@@ -66,7 +66,9 @@ mod tests {
 	use crate::_dev_utils;
 	use anyhow::Result;
 	use axum::routing::delete;
+	use serial_test::serial;
 
+	#[serial]
 	#[tokio::test]
 	async fn test_create_task() -> Result<()> {
 		let mm = _dev_utils::init_test().await;
@@ -93,6 +95,7 @@ mod tests {
 		Ok(())
 	}
 
+	#[serial]
 	#[tokio::test]
 	async fn test_update_task() -> Result<()> {
 		let mm = _dev_utils::init_test().await;
@@ -131,6 +134,7 @@ mod tests {
 		Ok(())
 	}
 
+	#[serial]
 	#[tokio::test]
 	async fn test_get_not_found() -> Result<()> {
 		let mm = _dev_utils::init_test().await;
@@ -149,6 +153,7 @@ mod tests {
 		Ok(())
 	}
 
+	#[serial]
 	#[tokio::test]
 	async fn test_delete_not_found() -> Result<()> {
 		let mm = _dev_utils::init_test().await;
@@ -167,6 +172,7 @@ mod tests {
 		Ok(())
 	}
 
+	#[serial]
 	#[tokio::test]
 	async fn test_list() -> Result<()> {
 		let mm = _dev_utils::init_test().await;

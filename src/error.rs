@@ -7,6 +7,7 @@ pub enum Error {
 	// -- Modules
 	Model(model::Error),
   ConfigMissingEnv(&'static str),
+  ConfigWrongFormat(&'static str),
 }
 
 // region:    --- Froms

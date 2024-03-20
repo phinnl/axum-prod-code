@@ -1,6 +1,10 @@
+use std::str::FromStr;
+
+use crate::crypt::token::{validate_web_token, Token};
 use crate::ctx::Ctx;
+use crate::model::user::{UserBmc, UserForAuth};
 use crate::model::ModelManager;
-use crate::web::AUTH_TOKEN;
+use crate::web::{remove_token_cookies, set_token_cookies, AUTH_TOKEN};
 use crate::web::{Error, Result};
 use async_trait::async_trait;
 use axum::extract::{FromRequestParts, State};
@@ -33,23 +37,44 @@ pub async fn mw_ctx_resolve<B>(
 ) -> Result<Response> {
 	debug!("{:<12} - mw_ctx_resolve", "MIDDLEWARE");
 
-	let auth_token = cookies.get(AUTH_TOKEN).map(|c| c.value().to_string());
+	let result_ctx = _ctx_resolve(_mm, &cookies).await;
 
-	// FIXME - Compute real CtxAuthResult<Ctx>.
-	let result_ctx =
-		Ctx::new(100).map_err(|ex| CtxExtError::CtxCreateFail(ex.to_string()));
-
-	// Remove the cookie if something went wrong other than NoAuthTokenCookie.
 	if result_ctx.is_err()
 		&& !matches!(result_ctx, Err(CtxExtError::TokenNotInCookie))
 	{
-		cookies.remove(Cookie::named(AUTH_TOKEN))
+		remove_token_cookies(&cookies);
 	}
 
 	// Store the ctx_result in the request extension.
 	req.extensions_mut().insert(result_ctx);
 
 	Ok(next.run(req).await)
+}
+
+async fn _ctx_resolve(mm: State<ModelManager>, cookies: &Cookies) -> CtxExtResult {
+	// Get token
+	let token = cookies
+		.get(AUTH_TOKEN)
+		.map(|c| c.value().to_string())
+		.ok_or(CtxExtError::TokenNotInCookie)?;
+
+	let token =
+		Token::from_str(&token).map_err(|_| CtxExtError::TokenWrongFormat)?;
+
+	let user: UserForAuth =
+		UserBmc::first_by_username(&Ctx::root_ctx(), &mm, &token.ident)
+			.await
+			.map_err(|err| CtxExtError::ModelAccessError(err.to_string()))?
+			.ok_or(CtxExtError::UserNotFound)?;
+
+	let salt = &user.token_salt.to_string();
+
+	validate_web_token(&token, salt).map_err(|_| CtxExtError::FailValidate)?;
+
+	set_token_cookies(cookies, &user.username, salt)
+		.map_err(|_| CtxExtError::SetTokenToCookieFail)?;
+
+	Ctx::new(user.id).map_err(|err| CtxExtError::CtxCreateFail(err.to_string()))
 }
 
 // region:    --- Ctx Extractor
@@ -78,5 +103,10 @@ pub enum CtxExtError {
 	TokenNotInCookie,
 	CtxNotInRequestExt,
 	CtxCreateFail(String),
+	TokenWrongFormat,
+	ModelAccessError(String),
+	UserNotFound,
+	FailValidate,
+	SetTokenToCookieFail,
 }
 // endregion: --- Ctx Extractor Result/Error

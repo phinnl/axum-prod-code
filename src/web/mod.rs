@@ -18,12 +18,21 @@ pub use self::error::{Error, Result};
 pub const AUTH_TOKEN: &str = "auth-token";
 
 pub fn set_token_cookies(cookies: &Cookies, user: &str, salt: &str) -> Result<()> {
-  let token = generate_web_token(user, salt)?;
-  let mut token_cookie = Cookie::new(AUTH_TOKEN, token.to_string());
-  token_cookie.set_http_only(true);
-  token_cookie.set_path("/");
+	let token = generate_web_token(user, salt)?;
+	let mut token_cookie = Cookie::new(AUTH_TOKEN, token.to_string());
+	token_cookie.set_http_only(true);
+	token_cookie.set_path("/");
 
-  cookies.add(token_cookie);
+	cookies.add(token_cookie);
 
-  Ok(())
+	Ok(())
+}
+
+pub fn remove_token_cookies(cookies: &Cookies) -> Result<()> {
+	let mut token_cookie = Cookie::named(AUTH_TOKEN);
+	token_cookie.set_path("/");
+
+	cookies.remove(token_cookie);
+  
+	Ok(())
 }

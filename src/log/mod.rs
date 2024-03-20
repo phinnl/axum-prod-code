@@ -1,18 +1,20 @@
 use crate::ctx::Ctx;
+use crate::rpc::RpcInfo;
 use crate::web::{self, ClientError};
 use crate::Result;
 use axum::http::{Method, Uri};
 use serde::Serialize;
 use serde_json::{json, Value};
 use serde_with::skip_serializing_none;
-use tracing::debug;
 use std::time::{SystemTime, UNIX_EPOCH};
+use tracing::debug;
 use uuid::Uuid;
 
 pub async fn log_request(
 	uuid: Uuid,
 	req_method: Method,
 	uri: Uri,
+	rpc_info: Option<&RpcInfo>,
 	ctx: Option<Ctx>,
 	web_error: Option<&web::Error>,
 	client_error: Option<ClientError>,
@@ -37,6 +39,9 @@ pub async fn log_request(
 
 		user_id: ctx.map(|c| c.user_id()),
 
+		rpc_id: rpc_info.and_then(|rpc| rpc.id.as_ref().map(|id| id.to_string())),
+		rpc_method: rpc_info.map(|rpc| rpc.method.to_string()),
+
 		client_error_type: client_error.map(|e| e.as_ref().to_string()),
 
 		error_type,
@@ -58,6 +63,10 @@ struct RequestLogLine {
 
 	// -- User and context attributes.
 	user_id: Option<i64>,
+
+	// -- rpc info
+	rpc_id: Option<String>,
+	rpc_method: Option<String>,
 
 	// -- http request attributes.
 	http_path: String,

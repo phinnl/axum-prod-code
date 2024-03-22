@@ -1,6 +1,8 @@
-use super::{base, Result};
+use super::{base, Error, Result};
+use modql::field::{Fields, HasFields};
+use sea_query::{Expr, Iden, IntoIden, PostgresQueryBuilder, Query, SimpleExpr};
+use sea_query_binder::SqlxBinder;
 use serde::{Deserialize, Serialize};
-use sqlb::{Fields, HasFields};
 use sqlx::{postgres::PgRow, prelude::FromRow};
 use uuid::Uuid;
 
@@ -46,6 +48,13 @@ pub struct UserForAuth {
 
 pub trait UserBy: HasFields + for<'r> FromRow<'r, PgRow> + Unpin + Send {}
 
+#[derive(Iden)]
+enum UserIden {
+	Id,
+	Username,
+	Pwd,
+}
+
 impl UserBy for User {}
 impl UserBy for UserForLogin {}
 impl UserBy for UserForAuth {}
@@ -73,11 +82,19 @@ impl UserBmc {
 		U: UserBy,
 	{
 		let db = mm.db();
-		let user = sqlb::select()
-			.table(Self::TABLE)
-			.and_where("username", "=", username)
-			.fetch_optional::<_, U>(db)
+		// build query
+		let mut query = Query::select();
+		query
+			.from(Self::table_ref())
+			.columns(U::field_column_refs())
+			.and_where(Expr::col(UserIden::Username).eq(username));
+
+		// exec query
+		let (sql, values) = query.build_sqlx(PostgresQueryBuilder);
+		let user = sqlx::query_as_with::<_, U, _>(&sql, values)
+			.fetch_optional(db)
 			.await?;
+
 		Ok(user)
 	}
 
@@ -89,17 +106,33 @@ impl UserBmc {
 	) -> Result<()> {
 		let db = mm.db();
 		let user: UserForLogin = Self::get(ctx, mm, id).await?;
+
+		// encrypt pwd
 		let pwd = pwd::encrypt_pwd(&EncryptContent {
 			content: pwd_clear.to_string(),
 			salt: user.pwd_salt.to_string(),
 		})?;
 
-		sqlb::update()
-			.and_where("id", "=", id)
-			.data(vec![("pwd", pwd).into()])
-			.table(Self::TABLE)
-			.exec(db)
-			.await?;
+		// build query
+		let mut query = Query::update();
+		query
+			.table(Self::table_ref())
+			.value(UserIden::Pwd, SimpleExpr::from(pwd))
+			.and_where(Expr::col(UserIden::Id).eq(id));
+
+		// exec query
+		let (sql, values) = query.build_sqlx(PostgresQueryBuilder);
+		let count = sqlx::query_with(&sql, values)
+			.execute(db)
+			.await?
+			.rows_affected();
+
+    if count != 1 {
+      return Err(Error::UpdateFailed {
+        entity: Self::TABLE,
+        id,
+      });
+    }
 
 		Ok(())
 	}
@@ -148,6 +181,36 @@ mod tests {
 
 		// Check
 		assert!(matches!(user, Some(demo_user)));
+
+		Ok(())
+	}
+
+	#[serial]
+	#[tokio::test]
+	async fn test_update_pwd_demo() -> Result<()> {
+		let ctx = Ctx::root_ctx();
+		let mm = _dev_utils::init_test().await;
+		let fx_user = User {
+			id: 1000,
+			username: "demo1".to_string(),
+		};
+    let fx_pwd = "123456";
+    
+    // Update pwd
+    UserBmc::update_pwd(&ctx, &mm, fx_user.id, fx_pwd).await?;
+    
+		// Get root user
+		let user =
+			UserBmc::first_by_username::<UserForLogin>(&ctx, &mm, &fx_user.username)
+      .await?.unwrap();
+
+    let fx_pwd_encrypted = pwd::encrypt_pwd(&EncryptContent {
+      content: fx_pwd.to_string(),
+      salt: user.pwd_salt.to_string(),
+    })?;
+
+		// Check
+		assert!(matches!(fx_pwd_encrypted, fx_pwd));
 
 		Ok(())
 	}

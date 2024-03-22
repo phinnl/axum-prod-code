@@ -49,7 +49,7 @@ async fn main() -> Result<()> {
 
 	// -- Define Routes
 	let routes_rpc =
-		rpc::routes(mm.clone()).route_layer(middleware::from_fn(mw_ctx_require));
+		rpc::routes(mm.clone());
 	let routes_all = Router::new()
 		.merge(routes_login::routes(mm.clone()))
 		.nest("/api", routes_rpc)

@@ -1,15 +1,20 @@
 use crate::{
 	ctx::Ctx,
 	model::{
-		task::{Task, TaskBmc, TaskForCreate, TaskForUpdate},
+		task::{Task, TaskBmc, TaskFilter, TaskForCreate, TaskForUpdate},
 		ModelManager,
 	},
 };
 
-use super::{ParamsForCreate, ParamsForUpdate, ParamsId, Result};
+use super::{ParamsForCreate, ParamsForUpdate, ParamsId, ParamsList, Result};
 
-pub async fn list_tasks(ctx: Ctx, mm: ModelManager) -> Result<Vec<Task>> {
-	let tasks = TaskBmc::list(&ctx, &mm).await?;
+pub async fn list_tasks(
+	ctx: Ctx,
+	mm: ModelManager,
+	params: ParamsList<TaskFilter>,
+) -> Result<Vec<Task>> {
+	let tasks =
+		TaskBmc::list(&ctx, &mm, params.filters, params.list_options).await?;
 	Ok(tasks)
 }
 

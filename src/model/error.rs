@@ -1,39 +1,39 @@
 use serde::Serialize;
 use serde_with::{serde_as, DisplayFromStr};
+use derive_more::From;
 
 use crate::{crypt, model::store};
 
 pub type Result<T> = core::result::Result<T, Error>;
 
 #[serde_as]
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, From)]
 pub enum Error {
   EntityNotFound {
     entity: &'static str,
     id: i64,
   },
+  UpdateFailed {
+    entity: &'static str,
+    id: i64,
+  },
   // -- Modules
+  #[from]
   Store(store::Error),
+  #[from]
   Crypt(crypt::Error),
   // -- External
+  #[from]
   Sqlx(#[serde_as(as = "DisplayFromStr")] sqlx::Error),
-}
+  #[from]
+  SeaQuery(#[serde_as(as = "DisplayFromStr")] sea_query::error::Error),
 
-impl From<sqlx::Error> for Error {
-  fn from(err: sqlx::Error) -> Self {
-    Self::Sqlx(err)
-  }
-}
+  #[from]
+  ModqlIntoSea(#[serde_as(as = "DisplayFromStr")] modql::filter::IntoSeaError),
 
-impl From<store::Error> for Error {
-  fn from(err: store::Error) -> Self {
-    Self::Store(err)
-  }
-}
-
-impl From<crypt::Error> for Error {
-  fn from(err: crypt::Error) -> Self {
-    Self::Crypt(err)
+  ListLimitExceeded {
+    max: i64,
+    actual: i64,
   }
 }
 

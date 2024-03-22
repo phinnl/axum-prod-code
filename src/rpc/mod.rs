@@ -4,8 +4,10 @@ use axum::{
 	routing::post,
 	Json, Router,
 };
-use serde::Deserialize;
+use modql::filter::ListOptions;
+use serde::{de::DeserializeOwned, Deserialize};
 use serde_json::{from_value, json, to_value, Value};
+use serde_with::{serde_as, OneOrMany};
 use tracing::debug;
 
 mod task_rpc;
@@ -42,6 +44,17 @@ pub struct ParamsForUpdate<T> {
 #[derive(Deserialize)]
 pub struct ParamsId {
 	pub id: i64,
+}
+
+#[serde_as]
+#[derive(Deserialize)]
+pub struct ParamsList<F>
+where
+	F: DeserializeOwned,
+{
+	#[serde_as(deserialize_as = "Option<OneOrMany<_>>")]
+	pub filters: Option<Vec<F>>,
+	pub list_options: Option<ListOptions>,
 }
 
 async fn rpc_handler(
@@ -86,7 +99,7 @@ async fn _rpc_handler(
 	debug!("{:<12} - mod.rs:50 - method: {method}", "HANDLER");
 
 	let result = match method.as_str() {
-		"list_tasks" => exec_rpc_fn!(task_rpc::list_tasks, ctx, mm),
+		"list_tasks" => exec_rpc_fn!(task_rpc::list_tasks, ctx, mm, params),
 		"get_task" => exec_rpc_fn!(task_rpc::get_task, ctx, mm, params),
 		"create_task" => exec_rpc_fn!(task_rpc::create_task, ctx, mm, params),
 		"update_task" => exec_rpc_fn!(task_rpc::update_task, ctx, mm, params),
